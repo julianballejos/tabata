@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Temporizador Tabata</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#262626; --accent:#ffff66; --prep:#ffff66; --work:#b0ff66; --rest:#66c2ff; --cool:#ff9966; }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:var(--bg); font-family:'Bebas Neue',Impact,'Arial Narrow',sans-serif; color:#000; overflow:hidden; }
+  #app { height:100%; display:flex; flex-direction:column; max-width:600px; margin:0 auto; }
+  header { background:var(--bg); color:var(--accent); display:flex; align-items:center; justify-content:space-between; padding:10px 16px; font-size:44px; line-height:1; }
+  header button { background:none; border:none; color:var(--accent); font-size:30px; cursor:pointer; font-family:inherit; width:48px; }
+  #main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--prep); transition:background .2s; text-align:center; }
+  #phase { font-size:min(18vw,110px); line-height:1; letter-spacing:1px; }
+  #time { font-size:min(52vw,300px); line-height:.95; font-variant-numeric:tabular-nums; }
+  #next { height:20%; min-height:110px; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--work); transition:background .2s; }
+  #next .lbl { font-size:34px; line-height:1; }
+  #next .t { font-size:80px; line-height:1; }
+  footer { background:var(--bg); display:flex; align-items:center; justify-content:space-around; padding:14px 8px calc(14px + env(safe-area-inset-bottom)); color:#fff; }
+  .stat { text-align:center; font-size:26px; line-height:1.1; width:30%; }
+  .stat b { display:block; font-weight:400; font-size:76px; line-height:1; }
+  #rounds b { color:#5aaaf0; } #cycles b { color:var(--accent); }
+  #play { width:104px; height:104px; border-radius:50%; background:var(--accent); border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+  #play::before { content:''; position:absolute; inset:10px; border:3px solid var(--bg); border-radius:50%; }
+  #play svg { width:40px; height:40px; fill:var(--bg); position:relative; }
+  .playwrap { text-align:center; color:var(--accent); font-size:34px; line-height:1.3; }
+  #reset { position:absolute; right:60px; top:64px; width:76px; height:76px; border-radius:50%; background:var(--bg); border:4px solid var(--accent); color:var(--accent); font-size:36px; cursor:pointer; display:none; z-index:2; font-family:inherit; }
+  /* ajustes */
+  #settings { position:fixed; inset:0; background:var(--bg); color:#fff; display:none; flex-direction:column; padding:20px 20px calc(20px + env(safe-area-inset-bottom)); overflow-y:auto; z-index:5; max-width:600px; margin:0 auto; }
+  #settings h2 { font-weight:400; font-size:48px; color:var(--accent); margin-bottom:10px; }
+  .row { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid #444; font-size:30px; }
+  .ctrl { display:flex; align-items:center; gap:10px; }
+  .ctrl button { width:46px; height:46px; border-radius:50%; border:2px solid var(--accent); background:none; color:var(--accent); font-size:30px; line-height:1; cursor:pointer; font-family:inherit; }
+  .ctrl input { width:84px; text-align:center; font-size:34px; font-family:inherit; background:#1a1a1a; color:#fff; border:1px solid #555; border-radius:8px; padding:4px; }
+  .hint { color:#999; font-size:20px; letter-spacing:.5px; }
+  #save { margin-top:24px; background:var(--accent); border:none; border-radius:12px; font-size:36px; padding:12px; font-family:inherit; cursor:pointer; color:#000; }
+  .tot { margin-top:16px; text-align:center; font-size:28px; color:var(--accent); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button id="openSettings" aria-label="Ajustes">⚙</button>
+    <span id="total">00:00</span>
+    <button id="mute" aria-label="Sonido">🔊</button>
+  </header>
+  <button id="reset" aria-label="Reiniciar">↻</button>
+  <div id="main">
+    <div id="phase">PREPÁRATE</div>
+    <div id="time">00:00</div>
+  </div>
+  <div id="next"><div class="lbl" id="nextLbl">ENTRENAR</div><div class="t" id="nextT">00:20</div></div>
+  <footer>
+    <div class="stat" id="rounds"><b>8</b>RONDAS RESTANTES</div>
+    <div class="playwrap">
+      <button id="play" aria-label="Empezar"><svg viewBox="0 0 24 24" id="icon"><path d="M6 4l14 8-14 8z"/></svg></button>
+      <span id="playLbl">EMPEZAR</span>
+    </div>
+    <div class="stat" id="cycles"><b>1</b>CICLOS RESTANTES</div>
+  </footer>
+</div>
+
+<div id="settings">
+  <h2>AJUSTES</h2>
+  <div class="row"><span>Preparación (seg)</span><div class="ctrl"><button data-k="prep" data-d="-5">−</button><input type="number" inputmode="numeric" id="prep"><button data-k="prep" data-d="5">+</button></div></div>
+  <div class="row"><span>Ejercicio (seg)</span><div class="ctrl"><button data-k="work" data-d="-5">−</button><input type="number" inputmode="numeric" id="work"><button data-k="work" data-d="5">+</button></div></div>
+  <div class="row"><span>Descanso (seg)</span><div class="ctrl"><button data-k="rest" data-d="-5">−</button><input type="number" inputmode="numeric" id="rest"><button data-k="rest" data-d="5">+</button></div></div>
+  <div class="row"><span>Rondas</span><div class="ctrl"><button data-k="rounds" data-d="-1">−</button><input type="number" inputmode="numeric" id="rounds_in"><button data-k="rounds" data-d="1">+</button></div></div>
+  <div class="row"><span>Ciclos</span><div class="ctrl"><button data-k="cycles" data-d="-1">−</button><input type="number" inputmode="numeric" id="cycles_in"><button data-k="cycles" data-d="1">+</button></div></div>
+  <div class="row"><span>Descanso entre ciclos (seg)</span><div class="ctrl"><button data-k="cycleRest" data-d="-5">−</button><input type="number" inputmode="numeric" id="cycleRest"><button data-k="cycleRest" data-d="5">+</button></div></div>
+  <div class="tot" id="summary"></div>
+  <p class="hint" style="text-align:center;margin-top:8px">Tabata clásico: 20 s ejercicio, 10 s descanso, 8 rondas.</p>
+  <button id="save">GUARDAR</button>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const DEF = { prep:5, work:20, rest:10, rounds:8, cycles:1, cycleRest:60 };
+  const LIM = { prep:[0,120], work:[1,3600], rest:[0,3600], rounds:[1,99], cycles:[1,99], cycleRest:[0,3600] };
+  let cfg = Object.assign({}, DEF);
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem('tabata-cfg') || '{}')); } catch(e){}
+
+  let seq = [], idx = 0, running = false, endAt = 0, remaining = 0, raf = null, lastBeepSec = null, muted = false, wake = null;
+
+  const fmt = s => { s = Math.max(0, Math.ceil(s)); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); };
+  const NAMES = { prep:'PREPÁRATE', work:'ENTRENAR', rest:'DESCANSA', cycleRest:'DESCANSO DE CICLO', done:'¡LISTO!' };
+  const COLORS = { prep:'var(--prep)', work:'var(--work)', rest:'var(--rest)', cycleRest:'var(--cool)', done:'var(--prep)' };
+
+  function build() {
+    seq = [];
+    if (cfg.prep > 0) seq.push({ type:'prep', dur:cfg.prep, r:1, c:1 });
+    for (let c = 1; c <= cfg.cycles; c++) {
+      for (let r = 1; r <= cfg.rounds; r++) {
+        seq.push({ type:'work', dur:cfg.work, r, c });
+        const lastRound = r === cfg.rounds, lastCycle = c === cfg.cycles;
+        if (!lastRound && cfg.rest > 0) seq.push({ type:'rest', dur:cfg.rest, r, c });
+        else if (lastRound && !lastCycle && cfg.cycleRest > 0) seq.push({ type:'cycleRest', dur:cfg.cycleRest, r, c });
+      }
+    }
+  }
+
+  function totalLeft() {
+    let t = remaining;
+    for (let i = idx + 1; i < seq.length; i++) t += seq[i].dur;
+    return t;
+  }
+
+  // sonido
+  let ac = null;
+  function beep(freq = 880, ms = 150, vol = .4) {
+    if (muted) return;
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.frequency.value = freq; o.type = 'square'; g.gain.value = vol;
+      o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + ms/1000);
+    } catch(e){}
+    if (navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  function render() {
+    const seg = seq[idx];
+    if (!seg) return;
+    $('main').style.background = COLORS[seg.type];
+    $('phase').textContent = NAMES[seg.type];
+    $('time').textContent = fmt(remaining);
+    $('total').textContent = fmt(totalLeft());
+    const nx = seq[idx + 1];
+    $('nextLbl').textContent = nx ? NAMES[nx.type] : 'FIN';
+    $('nextT').textContent = nx ? fmt(nx.dur) : '--:--';
+    $('next').style.background = nx ? COLORS[nx.type] : '#888';
+    // rondas restantes: las que faltan por terminar en el ciclo actual
+    const roundsLeft = seg.type === 'work' ? cfg.rounds - seg.r + 1 : (seg.type === 'prep' ? cfg.rounds : cfg.rounds - seg.r);
+    $('rounds').innerHTML = '<b>' + Math.max(0, seg.type === 'cycleRest' ? cfg.rounds : roundsLeft) + '</b>RONDAS RESTANTES';
+    const cyclesLeft = seg.type === 'prep' ? cfg.cycles : (seg.type === 'cycleRest' ? cfg.cycles - seg.c : cfg.cycles - seg.c + 1);
+    $('cycles').innerHTML = '<b>' + Math.max(0, cyclesLeft) + '</b>CICLOS RESTANTES';
+    document.title = fmt(remaining) + ' · ' + NAMES[seg.type];
+  }
+
+  function setPlayUI() {
+    $('icon').innerHTML = running ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M6 4l14 8-14 8z"/>';
+    $('playLbl').textContent = running ? 'PAUSA' : (idx === 0 && remaining === seq[0].dur ? 'EMPEZAR' : 'SEGUIR');
+    $('reset').style.display = (running || idx > 0 || remaining !== seq[0].dur) ? 'block' : 'none';
+  }
+
+  function loadSeg(i) {
+    idx = i; remaining = seq[i].dur; lastBeepSec = null;
+    if (running) endAt = performance.now() + remaining * 1000;
+    if (i > 0) beep(seq[i].type === 'work' ? 1200 : 700, 400, .5);
+  }
+
+  function tick() {
+    if (!running) return;
+    remaining = Math.max(0, (endAt - performance.now()) / 1000);
+    const sec = Math.ceil(remaining);
+    if (sec <= 3 && sec > 0 && sec !== lastBeepSec) { lastBeepSec = sec; beep(880, 120); }
+    if (remaining <= 0) {
+      if (idx + 1 < seq.length) { loadSeg(idx + 1); }
+      else { finish(); return; }
+    }
+    render();
+    raf = requestAnimationFrame(tick);
+  }
+
+  function finish() {
+    running = false; cancelAnimationFrame(raf); releaseWake();
+    beep(1200, 300); setTimeout(() => beep(1200, 300), 400); setTimeout(() => beep(1500, 600), 800);
+    $('phase').textContent = NAMES.done; $('time').textContent = '00:00'; $('total').textContent = '00:00';
+    $('main').style.background = COLORS.done;
+    $('nextLbl').textContent = 'FIN'; $('nextT').textContent = '--:--';
+    $('playLbl').textContent = 'EMPEZAR'; $('icon').innerHTML = '<path d="M6 4l14 8-14 8z"/>';
+    $('reset').style.display = 'block';
+    finished = true;
+  }
+  let finished = false;
+
+  async function getWake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch(e){} }
+  function releaseWake() { try { wake && wake.release(); } catch(e){} wake = null; }
+
+  function toggle() {
+    if (finished) { reset(); }
+    running = !running;
+    if (running) {
+      endAt = performance.now() + remaining * 1000;
+      beep(660, 80, .2); getWake(); raf = requestAnimationFrame(tick);
+    } else { cancelAnimationFrame(raf); releaseWake(); }
+    setPlayUI();
+  }
+
+  function reset() {
+    running = false; finished = false; cancelAnimationFrame(raf); releaseWake();
+    build(); idx = 0; remaining = seq[0].dur; lastBeepSec = null;
+    render(); setPlayUI();
+  }
+
+  // ajustes
+  const inputs = { prep:'prep', work:'work', rest:'rest', rounds:'rounds_in', cycles:'cycles_in', cycleRest:'cycleRest' };
+  function fillInputs() { for (const k in inputs) $(inputs[k]).value = cfg[k]; summary(); }
+  function readInputs() {
+    for (const k in inputs) {
+      let v = parseInt($(inputs[k]).value, 10); if (isNaN(v)) v = DEF[k];
+      cfg[k] = Math.min(LIM[k][1], Math.max(LIM[k][0], v));
+    }
+  }
+  function summary() {
+    const tmp = Object.assign({}, cfg);
+    for (const k in inputs) { let v = parseInt($(inputs[k]).value, 10); if (!isNaN(v)) tmp[k] = v; }
+    let t = tmp.prep + tmp.cycles * (tmp.rounds * tmp.work + (tmp.rounds - 1) * tmp.rest) + (tmp.cycles - 1) * tmp.cycleRest;
+    $('summary').textContent = 'Duración total: ' + fmt(t);
+  }
+  document.querySelectorAll('.ctrl button').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.k, el = $(inputs[k]); let v = parseInt(el.value, 10); if (isNaN(v)) v = cfg[k];
+    el.value = Math.min(LIM[k][1], Math.max(LIM[k][0], v + parseInt(b.dataset.d, 10))); summary();
+  }));
+  Object.values(inputs).forEach(id => $(id).addEventListener('input', summary));
+
+  $('openSettings').onclick = () => { if (running) toggle(); fillInputs(); $('settings').style.display = 'flex'; };
+  $('save').onclick = () => {
+    readInputs();
+    try { localStorage.setItem('tabata-cfg', JSON.stringify(cfg)); } catch(e){}
+    $('settings').style.display = 'none'; reset();
+  };
+  $('play').onclick = toggle;
+  $('reset').onclick = reset;
+  $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '🔇' : '🔊'; };
+  document.addEventListener('visibilitychange', () => { if (running && document.visibilityState === 'visible') getWake(); });
+
+  reset();
+})();
+</script>
+</body>
+</html>
